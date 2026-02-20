@@ -133,6 +133,4 @@ Supported formats:
 ## Current Scope
 Current model predicts lawn-oriented classes only (lawn vs non-lawn ground after CSF filtering). This repository is structured for extension to more vegetation classes.
 
-## License
-No license file is included yet. Add a license before public release.
 
