@@ -1,0 +1,49 @@
+seed: 42
+
+paths:
+  raw_train: data/raw/train
+  raw_val: data/raw/val
+  prepared_train: data/prepared/train
+  prepared_val: data/prepared/val
+  models: artifacts/models
+
+raster:
+  cell_size: 0.15
+  tile_size_m: 50.0
+  tile_overlap_m: 2.0
+  min_points_per_cell: 1
+
+features:
+  channels:
+    - count
+    - z_min
+    - z_max
+    - z_mean
+    - z_std
+    - intensity_mean
+    - intensity_std
+    - ndhm
+
+training:
+  batch_size: 8
+  num_workers: 0
+  epochs_stage2: 35
+  lr: 0.001
+  weight_decay: 0.0001
+  amp: true
+
+stage2:
+  valid_labels: [1, 2]
+
+csf:
+  # Tune for high precision of ground surface extraction.
+  bSloopSmooth: true
+  cloth_resolution: 0.2
+  rigidness: 3
+  class_threshold: 0.35
+  time_step: 0.65
+  interations: 700
+
+inference:
+  inference_chunk_points: 2000000
+  min_lawn_polygon_area_m2: 1.0
