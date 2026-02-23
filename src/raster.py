@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 
 RASTER_FEATURES = [
@@ -18,22 +19,35 @@ def _empty_grid(h: int, w: int):
     }
 
 
-def rasterize_scene(points: dict, cell_size: float):
+def rasterize_scene(points: dict, cell_size: float, progress_cb=None, progress_every: int = 5_000_000):
+    def log(msg: str):
+        if progress_cb is not None:
+            progress_cb(msg)
+
+    t_all = time.time()
     x, y, z, intensity = points['x'], points['y'], points['z'], points['intensity']
     label = points.get('label', None)
+    n_pts = len(x)
+    log(f'start: points={n_pts:,}, cell_size={cell_size}')
 
+    t0 = time.time()
     x0, y0 = float(x.min()), float(y.min())
     x1, y1 = float(x.max()), float(y.max())
 
     w = int(np.floor((x1 - x0) / cell_size)) + 1
     h = int(np.floor((y1 - y0) / cell_size)) + 1
+    log(f'extent: w={w}, h={h}, cells={h*w:,}')
 
     ix = np.floor((x - x0) / cell_size).astype(np.int32)
     iy = np.floor((y - y0) / cell_size).astype(np.int32)
+    log(f'cell indices computed in {time.time() - t0:.1f}s')
 
+    t0 = time.time()
     grid = _empty_grid(h, w)
+    log('grid buffers allocated')
 
-    for k in range(len(x)):
+    next_report = progress_every
+    for k in range(n_pts):
         r = iy[k]
         c = ix[k]
         zz = z[k]
@@ -48,7 +62,13 @@ def rasterize_scene(points: dict, cell_size: float):
         grid['z_sq_sum'][r, c] += zz * zz
         grid['i_sum'][r, c] += ii
         grid['i_sq_sum'][r, c] += ii * ii
+        if (k + 1) >= next_report:
+            pct = 100.0 * (k + 1) / max(n_pts, 1)
+            log(f'feature accumulate: {k + 1:,}/{n_pts:,} ({pct:.1f}%)')
+            next_report += progress_every
+    log(f'feature accumulation done in {time.time() - t0:.1f}s')
 
+    t0 = time.time()
     count = grid['count']
     valid = count > 0
     z_mean = np.zeros_like(count)
@@ -72,7 +92,9 @@ def rasterize_scene(points: dict, cell_size: float):
     z_min[~valid] = 0.0
     z_max[~valid] = 0.0
     ndhm = z_max - z_min
+    log(f'stats reduced in {time.time() - t0:.1f}s | valid cells={int(valid.sum()):,}')
 
+    t0 = time.time()
     feature_stack = np.stack([
         count,
         z_min,
@@ -83,19 +105,30 @@ def rasterize_scene(points: dict, cell_size: float):
         i_std,
         ndhm,
     ], axis=0)
+    log(f'feature stack built in {time.time() - t0:.1f}s')
 
     # Cell-level labels by majority vote.
     # stage1 is legacy (not used in CSF-first pipeline).
     # stage2 target: lawn(1) vs non-lawn(2) only for ground cells; 0 for ignored.
+    t0 = time.time()
     votes = np.zeros((h, w, 6), dtype=np.int32)
     if label is not None:
+        next_report = progress_every
         for k in range(len(label)):
             r = iy[k]
             c = ix[k]
             lb = int(label[k])
             if 1 <= lb <= 5:
                 votes[r, c, lb] += 1
+            if (k + 1) >= next_report:
+                pct = 100.0 * (k + 1) / max(len(label), 1)
+                log(f'label voting: {k + 1:,}/{len(label):,} ({pct:.1f}%)')
+                next_report += progress_every
+        log(f'label voting done in {time.time() - t0:.1f}s')
+    else:
+        log('label voting skipped (no labels)')
 
+    t0 = time.time()
     argmax_label = np.argmax(votes[:, :, 1:6], axis=2) + 1
     has_vote = votes[:, :, 1:6].sum(axis=2) > 0
 
@@ -105,6 +138,7 @@ def rasterize_scene(points: dict, cell_size: float):
     stage2 = np.zeros((h, w), dtype=np.int64)
     stage2[has_vote & (argmax_label == 1)] = 1
     stage2[has_vote & np.isin(argmax_label, [2, 3])] = 2
+    log(f'cell labels built in {time.time() - t0:.1f}s')
 
     meta = {
         'x0': x0,
@@ -114,6 +148,7 @@ def rasterize_scene(points: dict, cell_size: float):
         'height': h,
     }
 
+    log(f'rasterize_scene total: {time.time() - t_all:.1f}s')
     return feature_stack.astype(np.float32), stage1, stage2, valid.astype(np.uint8), meta
 
 

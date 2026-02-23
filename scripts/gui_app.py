@@ -16,31 +16,31 @@ ROOT = Path(__file__).resolve().parents[1]
 TR = {
     "ru": {
         "title": "LawnForge-NET GUI",
-        "settings": "РќР°СЃС‚СЂРѕР№РєРё",
-        "training": "РћР±СѓС‡РµРЅРёРµ",
-        "inference": "РРЅС„РµСЂРµРЅСЃ",
-        "status": "РЎС‚Р°С‚СѓСЃС‹",
-        "logs": "РџРѕРґСЂРѕР±РЅС‹Р№ Р»РѕРі",
-        "lang": "РЇР·С‹Рє",
-        "import": "РРјРїРѕСЂС‚ YAML",
-        "export": "Р­РєСЃРїРѕСЂС‚ YAML",
-        "prepare": "РџРѕРґРіРѕС‚РѕРІРёС‚СЊ",
-        "train": "РћР±СѓС‡РёС‚СЊ",
-        "prepare_train": "РџРѕРґРіРѕС‚РѕРІРёС‚СЊ+РћР±СѓС‡РёС‚СЊ",
-        "start": "РЎС‚Р°СЂС‚ batch",
-        "stop": "РЎС‚РѕРї",
-        "add": "Р”РѕР±Р°РІРёС‚СЊ",
-        "remove": "РЈРґР°Р»РёС‚СЊ РІС‹Р±СЂР°РЅРЅС‹Рµ",
-        "clear": "РћС‡РёСЃС‚РёС‚СЊ",
+        "settings": "Настройки",
+        "training": "Обучение",
+        "inference": "Инференс",
+        "status": "Статусы",
+        "logs": "Подробный лог",
+        "lang": "Язык",
+        "import": "Импорт YAML",
+        "export": "Экспорт YAML",
+        "prepare": "Подготовить",
+        "train": "Обучить",
+        "prepare_train": "Подготовить+Обучить",
+        "start": "Старт batch",
+        "stop": "Стоп",
+        "add": "Добавить",
+        "remove": "Удалить выбранные",
+        "clear": "Очистить",
         "torch": "Torch",
         "cuda": "CUDA",
-        "model": "РњРѕРґРµР»СЊ Р·Р°РіСЂСѓР¶РµРЅР°",
-        "refresh": "РћР±РЅРѕРІРёС‚СЊ СЃС‚Р°С‚СѓСЃС‹",
-        "minimal": "РўРѕР»СЊРєРѕ LAZ+GPKG",
-        "no_files": "Р”РѕР±Р°РІСЊС‚Рµ С„Р°Р№Р»С‹ РґР»СЏ РёРЅС„РµСЂРµРЅСЃР°",
-        "busy": "РЈР¶Рµ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ Р·Р°РґР°С‡Р°",
-        "open_settings": "РќР°СЃС‚СЂРѕР№РєРё",
-        "close": "Р—Р°РєСЂС‹С‚СЊ",
+        "model": "Модель загружена",
+        "refresh": "Обновить статусы",
+        "minimal": "Только LAZ+GPKG",
+        "no_files": "Добавьте файлы для инференса",
+        "busy": "Уже выполняется задача",
+        "open_settings": "Настройки",
+        "close": "Закрыть",
     },
     "en": {
         "title": "LawnForge-NET GUI",
@@ -121,6 +121,8 @@ class App:
         self.proc = None
         self.worker = None
         self.files = []
+        self.train_files = []
+        self.val_files = []
         self.settings_win = None
         self._build()
         self.root.after(100, self._drain)
@@ -238,9 +240,32 @@ class App:
     def _train_tab(self):
         f = self.tab_tr
         f.columnconfigure(1, weight=1)
+        f.rowconfigure(2, weight=1)
+        f.rowconfigure(3, weight=1)
         self._add_row(f, 0, "weights_out", self.vars["weights_out"], lambda: self._browse_save(self.vars["weights_out"], ".pt"))
+
+        train_box = ttk.LabelFrame(f, text="train files (optional override)")
+        train_box.grid(row=2, column=0, columnspan=3, sticky="nsew", padx=6, pady=6)
+        train_box.columnconfigure(0, weight=1)
+        train_box.rowconfigure(0, weight=1)
+        self.train_listbox = tk.Listbox(train_box, selectmode=tk.EXTENDED, height=6)
+        self.train_listbox.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=5, pady=5)
+        ttk.Button(train_box, text=self.t("add"), command=self.add_train_files).grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        ttk.Button(train_box, text=self.t("remove"), command=self.remove_train_files).grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        ttk.Button(train_box, text=self.t("clear"), command=self.clear_train_files).grid(row=1, column=2, sticky="w", padx=5, pady=5)
+
+        val_box = ttk.LabelFrame(f, text="val files (optional override)")
+        val_box.grid(row=3, column=0, columnspan=3, sticky="nsew", padx=6, pady=6)
+        val_box.columnconfigure(0, weight=1)
+        val_box.rowconfigure(0, weight=1)
+        self.val_listbox = tk.Listbox(val_box, selectmode=tk.EXTENDED, height=6)
+        self.val_listbox.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=5, pady=5)
+        ttk.Button(val_box, text=self.t("add"), command=self.add_val_files).grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        ttk.Button(val_box, text=self.t("remove"), command=self.remove_val_files).grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        ttk.Button(val_box, text=self.t("clear"), command=self.clear_val_files).grid(row=1, column=2, sticky="w", padx=5, pady=5)
+
         b = ttk.Frame(f)
-        b.grid(row=1, column=0, columnspan=3, sticky="w", padx=5, pady=8)
+        b.grid(row=4, column=0, columnspan=3, sticky="w", padx=5, pady=8)
         ttk.Button(b, text=self.t("prepare"), command=self.run_prepare).pack(side=tk.LEFT, padx=4)
         ttk.Button(b, text=self.t("train"), command=self.run_train).pack(side=tk.LEFT, padx=4)
         ttk.Button(b, text=self.t("prepare_train"), command=self.run_prepare_train).pack(side=tk.LEFT, padx=4)
@@ -384,12 +409,68 @@ class App:
         if p:
             var.set(p)
 
+    def _normalize_selected_paths(self, raw_paths):
+        # Windows Tk can return a Tcl list string instead of a tuple.
+        if not raw_paths:
+            return []
+        if isinstance(raw_paths, str):
+            raw_paths = self.root.tk.splitlist(raw_paths)
+        return [str(Path(p).expanduser()) for p in raw_paths if str(p).strip()]
+
     def add_files(self):
-        ps = filedialog.askopenfilenames(filetypes=[("Point clouds", "*.laz *.las *.npz *.csv"), ("All", "*.*")])
+        ps = self._normalize_selected_paths(
+            filedialog.askopenfilenames(filetypes=[("Point clouds", "*.laz *.las *.npz *.csv"), ("All", "*.*")])
+        )
         for p in ps:
             self.files.append(p)
             self.listbox.insert(tk.END, p)
         self._log(f"Added files: {len(ps)}")
+
+    def _pick_scene_files(self):
+        return self._normalize_selected_paths(
+            filedialog.askopenfilenames(filetypes=[("Point clouds", "*.laz *.las *.npz *.csv"), ("All", "*.*")])
+        )
+
+    def _add_unique_files(self, target, listbox, paths, log_prefix):
+        added = 0
+        seen = set(target)
+        for p in paths:
+            if p in seen:
+                continue
+            target.append(p)
+            listbox.insert(tk.END, p)
+            seen.add(p)
+            added += 1
+        self._log(f"{log_prefix}: +{added} (selected {len(paths)})")
+
+    def _remove_selected_from(self, target, listbox):
+        idx = list(listbox.curselection())
+        idx.reverse()
+        for i in idx:
+            del target[i]
+            listbox.delete(i)
+
+    def _clear_file_list(self, target, listbox):
+        target.clear()
+        listbox.delete(0, tk.END)
+
+    def add_train_files(self):
+        self._add_unique_files(self.train_files, self.train_listbox, self._pick_scene_files(), "Train files")
+
+    def remove_train_files(self):
+        self._remove_selected_from(self.train_files, self.train_listbox)
+
+    def clear_train_files(self):
+        self._clear_file_list(self.train_files, self.train_listbox)
+
+    def add_val_files(self):
+        self._add_unique_files(self.val_files, self.val_listbox, self._pick_scene_files(), "Val files")
+
+    def remove_val_files(self):
+        self._remove_selected_from(self.val_files, self.val_listbox)
+
+    def clear_val_files(self):
+        self._clear_file_list(self.val_files, self.val_listbox)
 
     def remove_files(self):
         idx = list(self.listbox.curselection())
@@ -432,7 +513,17 @@ class App:
 
     def _run(self, cmd):
         self._log("CMD: " + " ".join(cmd))
-        self.proc = subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        self.proc = subprocess.Popen(
+            cmd,
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
         for line in self.proc.stdout:
             self._log(line.rstrip())
             if self.stop_flag.is_set():
@@ -448,8 +539,18 @@ class App:
         self.stop_flag.clear()
         return True
 
+    def _validate_training_file_overrides(self):
+        missing = [p for p in (self.train_files + self.val_files) if not Path(p).exists()]
+        if not missing:
+            return True
+        self._log(f"Missing selected files: {missing}")
+        messagebox.showerror("Missing files", f"Не найдены выбранные файлы ({len(missing)}). Проверьте пути в списках.")
+        return False
+
     def run_prepare(self):
         if not self._ensure_idle():
+            return
+        if not self._validate_training_file_overrides():
             return
         self.worker = threading.Thread(target=self._w_prepare, daemon=True)
         self.worker.start()
@@ -462,6 +563,8 @@ class App:
 
     def run_prepare_train(self):
         if not self._ensure_idle():
+            return
+        if not self._validate_training_file_overrides():
             return
         self.worker = threading.Thread(target=self._w_prepare_train, daemon=True)
         self.worker.start()
@@ -478,7 +581,12 @@ class App:
     def _w_prepare(self):
         c = self._write_tmp_cfg()
         self._log(f"Temp config: {c}")
-        self._log(f"prepare rc={self._run([sys.executable, 'scripts/prepare_dataset.py', '--config', c])}")
+        cmd = [sys.executable, 'scripts/prepare_dataset.py', '--config', c]
+        if self.train_files:
+            cmd += ['--train-scenes', *self.train_files]
+        if self.val_files:
+            cmd += ['--val-scenes', *self.val_files]
+        self._log(f"prepare rc={self._run(cmd)}")
 
     def _w_train(self):
         c = self._write_tmp_cfg()
@@ -490,7 +598,12 @@ class App:
     def _w_prepare_train(self):
         c = self._write_tmp_cfg()
         self._log(f"Temp config: {c}")
-        rc = self._run([sys.executable, "scripts/prepare_dataset.py", "--config", c])
+        prep_cmd = [sys.executable, "scripts/prepare_dataset.py", "--config", c]
+        if self.train_files:
+            prep_cmd += ["--train-scenes", *self.train_files]
+        if self.val_files:
+            prep_cmd += ["--val-scenes", *self.val_files]
+        rc = self._run(prep_cmd)
         self._log(f"prepare rc={rc}")
         if rc == 0 and not self.stop_flag.is_set():
             rc2 = self._run([sys.executable, "scripts/train_stage2.py", "--config", c, "--weights-out", self.vars["weights_out"].get().strip()])

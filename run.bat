@@ -47,13 +47,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM ---- Force CUDA 11.8 build of PyTorch by default ----
-echo [INFO] Installing PyTorch with CUDA 11.8...
-"%VENV_PY%" -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
-"%VENV_PY%" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+REM ---- Install PyTorch only if missing ----
+"%VENV_PY%" -c "import importlib.util, sys; mods=('torch','torchvision','torchaudio'); sys.exit(0 if all(importlib.util.find_spec(m) for m in mods) else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Failed to install CUDA 11.8 PyTorch build.
-    exit /b 1
+    echo [INFO] PyTorch packages not found. Installing CUDA 11.8 build...
+    "%VENV_PY%" -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
+    "%VENV_PY%" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+    if errorlevel 1 (
+        echo [ERROR] Failed to install CUDA 11.8 PyTorch build.
+        exit /b 1
+    )
+) else (
+    echo [INFO] PyTorch already installed in venv. Skipping install.
 )
 
 echo [INFO] Checking PyTorch/CUDA...
